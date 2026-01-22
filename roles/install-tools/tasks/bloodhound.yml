@@ -112,7 +112,7 @@
     remote_src: true
 
 # -------------------------------------------------------------------------
-# Run install idempotently (Option A)
+# Run bloodhound
 # -------------------------------------------------------------------------
 - name: Check whether BloodHound config dir exists
   ansible.builtin.stat:
@@ -155,7 +155,7 @@
   when: bh_default_pwd.rc == 0 and (bh_default_pwd.stdout | trim | length) > 0
   no_log: true
 
-- name: Optionally display the password (WILL show in output!)
+- name: Optionally display the password 
   ansible.builtin.debug:
     msg: "BloodHound CE admin password: {{ bh_default_pwd.stdout | trim }}"
   when:
