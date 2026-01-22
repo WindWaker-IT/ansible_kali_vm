@@ -20,6 +20,20 @@ This Playbook is for setting up a new Kali VM with my customizations and Setting
 
 ## Installation 
 
+
+
+If you want to disable some plays like `installing keyboard` then just make a comment in the `main.yml`.
+
+Like 
+```bash
+#     - role: "roles/kali-settings"
+```
+Make sure, that your `kali` is patched! 
+
+```bash
+sudo apt-get update && apt-get upgrade -y
+```
+
 - Install Ansible
 ```bash
 sudo apt install ansible
@@ -37,6 +51,14 @@ sudo ansible-playbook main.yml
 ```
 
 - Restart Terminal but better a full restart
+
+
+### Bloodhound
+
+After running the whole playbook, `bloodhound-cli` is installed and the password is in `/root/bloodhound_ce_admin_password.txt`
+You can start and stop the container via `bloodhound-cli containers start/stop`
+
+Make sure to change the password after inital execution.
 
 ## Contributing
 
