@@ -1,0 +1,169 @@
+
+---
+- name: Install BloodHound CE 
+  become: true
+  gather_facts: true
+
+  vars:
+    # User that will run bloodhound-cli (controls where CLI config/compose gets created)
+    bloodhound_user: "{{ ansible_user_id }}"
+
+    # Where to stage the download/unpack
+    bloodhound_install_dir: /opt/bloodhound
+
+    # Store generated admin password here (root-only)
+    bloodhound_pwd_file: /root/bloodhound_ce_admin_password.txt
+
+    # Set true only if you explicitly want the password printed in Ansible output
+    bloodhound_show_password: false
+
+    # Install Docker via OS packages (Debian/Ubuntu path in this playbook)
+    install_docker: true
+
+  pre_tasks:
+    - name: Map CPU architecture to bloodhound-cli release arch
+      ansible.builtin.set_fact:
+        bhcli_arch: >-
+          {{ 'amd64' if ansible_architecture in ['x86_64', 'amd64'] else
+             'arm64' if ansible_architecture in ['aarch64', 'arm64'] else
+             'amd64' }}
+
+    - name: Get passwd entry for bloodhound_user (home dir)
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ bloodhound_user }}"
+
+    - name: Set user home and expected BH config dir (XDG default on Linux)
+      ansible.builtin.set_fact:
+        bloodhound_user_home: "{{ getent_passwd[bloodhound_user][4] }}"
+        bloodhound_config_dir: "{{ getent_passwd[bloodhound_user][4] }}/.config/bloodhound"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Docker installation (Debian/Ubuntu)
+    # -------------------------------------------------------------------------
+    - name: Install Docker Engine + Compose plugin (Debian/Ubuntu)
+      when:
+        - install_docker
+        - ansible_os_family == "Debian"
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - ca-certificates
+          - curl
+        state: present
+
+    - name: Ensure docker group exists
+      when: install_docker
+      ansible.builtin.group:
+        name: docker
+        state: present
+
+    - name: Add bloodhound_user to docker group
+      when: install_docker
+      ansible.builtin.user:
+        name: "{{ bloodhound_user }}"
+        groups: docker
+        append: true
+
+    - name: Ensure Docker service is enabled and running
+      when: install_docker
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
+
+    # -------------------------------------------------------------------------
+    # Download + install bloodhound-cli (latest)
+    # -------------------------------------------------------------------------
+    - name: Create install directory
+      ansible.builtin.file:
+        path: "{{ bloodhound_install_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download bloodhound-cli tarball (latest)
+      ansible.builtin.get_url:
+        url: "https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-{{ bhcli_arch }}.tar.gz"
+        dest: "{{ bloodhound_install_dir }}/bloodhound-cli-linux-{{ bhcli_arch }}.tar.gz"
+        mode: "0644"
+      # The official quickstart uses this "latest/download" pattern for CLI assets.
+      # (Source: https://bloodhound.specterops.io/get-started/quickstart/community-edition-quickstart)
+
+    - name: Unpack bloodhound-cli
+      ansible.builtin.unarchive:
+        src: "{{ bloodhound_install_dir }}/bloodhound-cli-linux-{{ bhcli_arch }}.tar.gz"
+        dest: "{{ bloodhound_install_dir }}"
+        remote_src: true
+        creates: "{{ bloodhound_install_dir }}/bloodhound-cli"
+
+    - name: Install bloodhound-cli into /usr/local/bin
+      ansible.builtin.copy:
+        src: "{{ bloodhound_install_dir }}/bloodhound-cli"
+        dest: /usr/local/bin/bloodhound-cli
+        mode: "0755"
+        remote_src: true
+
+    # -------------------------------------------------------------------------
+    # Run bloodhound-cli install idempotently
+    # -------------------------------------------------------------------------
+    - name: Check whether BloodHound config dir exists
+      ansible.builtin.stat:
+        path: "{{ bloodhound_config_dir }}"
+      register: bh_cfg
+
+    - name: Check whether docker-compose.yml exists in BH config dir
+      ansible.builtin.stat:
+        path: "{{ bloodhound_config_dir }}/docker-compose.yml"
+      register: bh_compose
+      when: bh_cfg.stat.exists
+
+    - name: Run bloodhound-cli install (first-time setup only)
+      ansible.builtin.command: /usr/local/bin/bloodhound-cli install
+      become_user: "{{ bloodhound_user }}"
+      register: bh_install
+      changed_when: true
+      when: not (bh_cfg.stat.exists and (bh_compose.stat.exists | default(false)))
+
+
+    - name: Try reading the generated default password from CLI config (if supported)
+      ansible.builtin.command: /usr/local/bin/bloodhound-cli config get default_password
+      become_user: "{{ bloodhound_user }}"
+      register: bh_default_pwd
+      changed_when: false
+      failed_when: false
+      no_log: true
+      # This retrieval method is referenced in SpecterOps' issue discussion.
+
+
+    - name: Persist generated password to root-only file
+      ansible.builtin.copy:
+        dest: "{{ bloodhound_pwd_file }}"
+        content: |
+          BloodHound CE initial admin credentials
+          username: admin
+          password: {{ bh_default_pwd.stdout | trim }}
+          UI: http://localhost:8080/ui/login
+        mode: "0600"
+      when: bh_default_pwd.rc == 0 and (bh_default_pwd.stdout | trim | length) > 0
+      no_log: true
+      # The default login URL is documented in the quickstart.
+
+    - name: Optionally display the password (shows in Ansible output!)
+      ansible.builtin.debug:
+        msg: "BloodHound CE admin password: {{ bh_default_pwd.stdout | trim }}"
+      when:
+        - bloodhound_show_password | bool
+        - bh_default_pwd.rc == 0
+        - (bh_default_pwd.stdout | trim | length) > 0
+      no_log: false
+
+    - name: Show access info (no password)
+      ansible.builtin.debug:
+        msg:
+          - "BloodHound CE UI: http://localhost:8080/ui/login"
+          - "If retrieved, the initial admin password is saved to: {{ bloodhound_pwd_file }}"
+      # Login URL is from quickstart.
+
