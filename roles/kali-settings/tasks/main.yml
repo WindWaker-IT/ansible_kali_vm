@@ -1,0 +1,29 @@
+---
+# 1) Set German keyboard system-wide 
+- name: Set German keyboard in /etc/default/keyboard
+  lineinfile:
+    path: /etc/default/keyboard
+    regexp: '^XKBLAYOUT='
+    line: 'XKBLAYOUT="de"'
+
+#Apply keyboard immediately (console)
+- name: Apply system console keymap
+  command: setupcon
+
+
+#Create keyboard layout config key
+- name: Create XFCE German keyboard layout key
+  command: xfconf-query -c keyboard-layout -p /Default/XkbLayout --create -t string -s "de"
+  environment:
+    DISPLAY: ":0"
+    XAUTHORITY: "/home/kali/.Xauthority"
+  ignore_errors: no
+
+# Apply layout live (without reboot)
+- name: Apply X11 keyboard layout now
+  command: setxkbmap de
+  environment:
+    DISPLAY: ":0"
+
+
+

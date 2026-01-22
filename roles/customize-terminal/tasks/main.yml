@@ -1,0 +1,67 @@
+---
+- name: Install required packages
+  apt:
+    name:
+      - zsh
+      - git
+      - curl
+      - wget
+      - gpg
+      - bat
+      - grc
+      - fzf
+      - tmux
+    state: present
+    update_cache: true
+
+- name: Set zsh as default shell for kali user
+  user:
+    name: kali
+    shell: /usr/bin/zsh
+
+- name: Install Oh My Zsh (non-interactive)
+  git:
+    repo: https://github.com/ohmyzsh/ohmyzsh.git
+    dest: /home/kali/.oh-my-zsh
+    update: false
+  become: false
+
+- name: Install zsh-autosuggestions
+  git:
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+    dest: /home/kali/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+    update: false
+  become: false
+
+- name: Install zsh-syntax-highlighting
+  git:
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+    dest: /home/kali/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
+    update: false
+  become: false
+
+- name: Add eza GPG key
+  get_url:
+    url: https://raw.githubusercontent.com/eza-community/eza/main/deb.asc
+    dest: /etc/apt/keyrings/eza.gpg
+    mode: '0644'
+
+- name: Add eza repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/eza.gpg] http://deb.gierens.de stable main"
+    filename: eza
+    state: present
+
+- name: Install eza
+  apt:
+    name: eza
+    state: present
+    update_cache: true
+
+- name: Deploy .zshrc
+  copy:
+    src: zshrc
+    dest: /home/kali/.zshrc
+    owner: kali
+    group: kali
+    mode: '0644'

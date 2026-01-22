@@ -1,0 +1,12 @@
+---
+- name: "Pentest OS"
+  hosts: localhost
+  connection: local
+  become: true
+  
+  roles: 
+    - role: "roles/kali-settings"
+    - role: "roles/install-tools"
+    - role: "roles/customize-terminal"
+
+  
