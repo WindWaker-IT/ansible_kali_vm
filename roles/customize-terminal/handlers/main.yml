@@ -1,0 +1,5 @@
+---
+- name: reload tmux
+  shell: |
+    tmux source-file /home/kali/.tmux.conf || true
+  become: false

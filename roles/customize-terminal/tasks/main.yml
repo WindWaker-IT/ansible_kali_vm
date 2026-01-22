@@ -65,3 +65,46 @@
     owner: kali
     group: kali
     mode: '0644'
+
+
+- name: Ensure tmux is installed
+  apt:
+    name: tmux
+    state: present
+    update_cache: true
+
+- name: Deploy .tmux.conf
+  copy:
+    src: tmux.conf
+    dest: /home/kali/.tmux.conf
+    owner: kali
+    group: kali
+    mode: '0644'
+  notify: reload tmux
+
+
+- name: Copy Hack Nerd Font to tmp
+  copy:
+    src: Hack.zip
+    dest: /tmp/Hack.zip
+  become: false
+
+- name: Create nerd-fonts directory
+  file:
+    path: /usr/share/fonts/truetype/nerd-fonts
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Unarchive Hack Nerd Font
+  unarchive:
+    src: /tmp/Hack.zip
+    dest: /usr/share/fonts/truetype/nerd-fonts
+    creates: /usr/share/fonts/truetype/nerd-fonts/Hack-Regular Nerd Font Complete.ttf
+  become: true
+
+- name: Rebuild font cache
+  command: fc-cache -fv
+  become: true
