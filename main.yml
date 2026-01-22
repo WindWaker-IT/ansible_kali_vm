@@ -6,7 +6,7 @@
   
   roles: 
     - role: "roles/kali-settings"
-    - role: "roles/install-tools"
+  #  - role: "roles/install-tools"
     - role: "roles/customize-terminal"
 
   
